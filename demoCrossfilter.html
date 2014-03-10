@@ -1,0 +1,40 @@
+
+<html>
+<head>
+<style>
+  body {
+  font: 10px sans-serif;
+}
+.chart rect {
+  stroke: white;
+  fill: blue;
+}
+.chart text {
+  fill: black;
+  text-anchor: end;
+}
+.chart text.white-label {
+  fill: white;
+}
+</style>
+  
+<script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+<script src="http://mbostock.github.com/d3/d3.v2.js?2.8.1"></script>
+<script src="http://square.github.com/crossfilter/crossfilter.v1.min.js"></script>
+<script src="js/demoCrossfilter.js"></script>
+</head>
+
+<body>
+  <div style="padding: 10px">
+  <div id="chart"></div>
+  <div style="padding-top: 10px">
+    <div style="width: 515px; clear:both;">
+      <input id="slider" type="range" style="width:100%" min="1789" value="0" max="2012">
+      <span style="float:left">Presidents starting after: <strong><span id="start-year">1789</span></span></strong>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
+

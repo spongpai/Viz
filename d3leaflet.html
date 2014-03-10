@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Testing d3.js in Leaflet.js</title>
+ 
+<script src="http://mbostock.github.com/d3/d3.v2.js?2.8.1"></script>
+  	<link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.css" />
+	 <script src="http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.js"></script>
+<style type="text/css">
+svg , g
+{
+border: solid 3px red;
+stroke-width: 1.5px;
+}
+circle {
+fill: steelblue;
+fill-opacity: .8;
+}
+</style>
+</head>
+<body>
+<div id="map" style="width: 600px; height: 600px;position:relative"></div>
+<script type="text/javascript">
+var api_cloudmade = "bd69fdff55d44d888427707d0815fbdd";
+var cloudmadeUrl = 'http://{s}.tile.cloudmade.com/'+api_cloudmade+'/998/256/{z}/{x}/{y}.png',
+cloudmadeAttribution = 'Map data &copy; 2011 OpenStreetMap contributors, Imagery &copy; 2011 CloudMade',
+cloudmade = new L.TileLayer(cloudmadeUrl, {maxZoom: 18, attribution: cloudmadeAttribution});
+ 
+var map = new L.Map('map', {
+center: new L.LatLng( 47.0176,2.3427,6),
+zoom: 5,
+layers: [cloudmade]
+});
+/* Initialize the SVG layer */
+map._initPathRoot()
+ 
+/* We simply pick up the SVG from the map object */
+var svg = d3.select("#map").select("svg"),
+g = svg.append("g");
+d3.json("data/taxa_json.json", function(collection) {
+/* Add a LatLng object to each item in the dataset */
+collection.features.forEach(function(d) {
+d.LatLng = new L.LatLng(d.geometry.coordinates[1],d.geometry.coordinates[0])
+})
+var feature = g.selectAll("circle")
+.data(collection.features)
+.enter().append("circle").attr("r", function (d) { return d.properties.count/20 });
+ 
+function update() {
+feature.attr("cx",function(d) { return map.latLngToLayerPoint(d.LatLng).x})
+feature.attr("cy",function(d) { return map.latLngToLayerPoint(d.LatLng).y})
+feature.attr("r",function(d) { return d.properties.count/1400*Math.pow(2,map.getZoom())})
+}
+map.on("viewreset", update);
+update();
+})	
+</script>
+</body>
+</html>
