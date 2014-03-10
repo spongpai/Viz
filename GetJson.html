@@ -68,7 +68,7 @@
 
   var jsonCollection = "data/collection.json";
   // read geoJson file
-  $.getJSON( jsonCollection, convertToGeoJson);
+  //$.getJSON( jsonCollection, convertToGeoJson);
   var collection = [];
   var theme = "";
   function convertToGeoJson(data){
@@ -120,7 +120,8 @@
   }
 
 
-  var jsonFile = "data/testgeojson.json";
+  //var jsonFile = "data/testgeojson.json";
+  var jsonFile = "http://vanilla.ics.uci.edu:8081/eventshoplinux/webresources/mongodb/eventshoplinux/ds999/timerange/2013-08-05/2013-08-10/startTimeStr";  //"data/ds999.json";
   var api_cloudmade = "bd69fdff55d44d888427707d0815fbdd";
   $('#map').append("<div id='map_" + 1 + "'></div>")
   var map = L.map('map').setView([39, -121.5], 7);
@@ -135,7 +136,7 @@
   var selectedId = 0;
   
   // read geoJson file
-  //$.getJSON( jsonFile, renderFeatures);
+  $.getJSON( jsonFile, renderFeatures);
 
  
   /*
@@ -208,7 +209,7 @@
       timeLineStart.push(value.startTimeStr);
       timeLineEnd.push(value.endTimeStr);
       theme = value.theme;
-      //console.log("push in array " + key);
+      console.log("push in array " + key);
     });
     //$.each(featureCollection, function(key, x){
       //console.log("show in array " + key)
