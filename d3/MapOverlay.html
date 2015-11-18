@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Testmap</title>
+	<meta charset="utf-8" />
+	<script src="http://cdn.leafletjs.com/leaflet-0.6.1/leaflet.js"></script>
+	<script src="http://d3js.org/d3.v3.min.js"></script>
+	<script src="http://d3js.org/topojson.v1.min.js"></script>
+	<script src="../js/roads.js"></script>
+
+	<style>
+		@import url(http://cdn.leafletjs.com/leaflet-0.6.1/leaflet.css);
+		#overlay{
+		 fill:None;
+		 stroke:#ff00ff;
+		 stroke-width:4px;
+		}
+	</style>
+</head>
+<body>
+	Ref: <a href="http://www.digital-geography.com/d3-geodata-basics-a-map-overlay-can-have-many-faces/#.VGWbyvmSy-1" target="_blank">click here</a>
+	<br>
+	<div id="map" style="width: 960px; height: 300px"></div>
+	<script>
+	
+	//-121.9456,39.5743
+	var map = L.map('map').setView([52.52,13.384], 13);
+  	//var map = L.map('map').setView([39,-121], 5);	// lat,long usa
+	var toolserver = L.tileLayer('http://{s}.www.toolserver.org/tiles/bw-mapnik/{z}/{x}/{y}.png');
+	var stamen = L.tileLayer('http://{s}.tile.stamen.com/toner/{z}/{x}/{y}.png', {attribution: 'Add some attributes here!'}).addTo(map);
+	var baseLayers = {"stamen": stamen, "toolserver-mapnik":toolserver};
+	//L.control.layers(baseLayers).addTo(map);
+  
+	
+	// I. read geoJson from javascript directly
+	// add data to map
+	var geojson = L.geoJson(roads, {
+	    onEachFeature: onEachFeature
+	}).addTo(map)
+	
+	//define the ‘onEachFeature’ function
+	function onEachFeature(feature, layer){
+		if (feature.properties) {
+			layer.bindPopup("<b>" + feature.properties.street + "</b> is " + feature.properties.length + "km long.");
+		}
+	}
+	
+	//throw the geoJSON-data into an ‘object’ as we made it for the ‘baseLayers’
+	var overlays = {
+		 "geoJson": geojson
+	};
+	// add it to the layer control
+	//L.control.layers(baseLayers, overlays).addTo(map);
+	
+	// adding a ‘svgContainer’ to the overlay pane of the Leaflet-map 
+	var svgContainer = d3.select(map.getPanes().overlayPane).append("svg");
+	
+	// ensured that everything that will be visualised within that ‘svgContainer’ is fixed to the current map view…
+	// meaning you can drag the map and the ‘svgContainer’ follows.
+	// add a group, and define it as a certain ‘class’ of Leaflet, whereby the overlay is hidden on all zoom events!
+	var group= svgContainer.append("g").attr("class", "leaflet-zoom-hide")
+	var pathh = d3.geo.path().projection(project);
+	
+	
+	
+	// II. working wiht d3.js and geoJson file
+	d3.json("../json/emage.json", function(collection) {
+		console.log([collection])	// from roads2.js
+	    console.log(roads)			// from roads.js
+	     
+	    var roadsTest = [collection];
+	 
+	    var geojson_d3 = L.geoJson(roadsTest, {
+	        onEachFeature: onEachFeature
+	    })
+	 
+	    overlays["geojson_d3"] = geojson_d3;
+	     
+	    //L.control.layers(baseLayers, overlays).addTo(map);
+	    
+	    // III. d3.js with topoJsong
+		d3.json("../json/roads2_topo.json", function(error, topology) {
+			//console.log(topology)
+			var collection2 = topojson.feature(topology, topology.objects.roads2);
+			var roadsTopoJSON = [collection2];
+			   
+			//console.log(roadsTopoJSON)
+			   
+			var geojson_tj = L.geoJson(roadsTopoJSON, {
+				onEachFeature: onEachFeature
+			})
+			 
+			overlays["geojson_topojson"] = geojson_tj;
+			 
+			L.control.layers(baseLayers, overlays).addTo(map);
+			
+			/*
+			var feature = group.selectAll("path")
+			    .data(collection2.features)
+			    .enter()
+			    .append("path")
+			    .attr("id","overlay");
+			*/
+			
+			//***described code can be found in the function 'setFeature()'...
+			// I need that as function to the 'hide/show overlay'
+	      	var feature;
+	      	setFeature();
+	      	//****
+		      
+			var bounds = d3.geo.bounds(collection2);
+
+			function reset() {
+				// set this bounds to match with map boundingbox (to fix the location of hide/show overlay)
+				bounds = [[map.getBounds()._southWest.lng, map.getBounds()._southWest.lat],[map.getBounds()._northEast.lng, map.getBounds()._northEast.lat]]
+		        var bottomLeft = project(bounds[0]),
+			     topRight = project(bounds[1]);
+			 
+			     svgContainer.attr("width", topRight[0] - bottomLeft[0])
+			         .attr("height", bottomLeft[1] - topRight[1])
+			         .style("margin-left", bottomLeft[0] + "px")
+			         .style("margin-top", topRight[1] + "px");
+			 
+			     group.attr("transform", "translate(" + -bottomLeft[0] + "," + -topRight[1] + ")");
+			 
+			    feature.attr("d", pathh);
+			 }
+			reset();
+			//We can drag it … but it fails on zooming! 
+			// That is because we have to reset the extent of the ‘svgContainer’…they are not correct after zooming!
+			map.on("viewreset", reset);
+			map.on("drag", reset);
+			
+			feature.on("mousedown",function(d){
+				var coordinates = d3.mouse(this);
+				//console.log(d,coordinates,map.layerPointToLatLng(coordinates))
+				L.popup()
+					.setLatLng(map.layerPointToLatLng(coordinates))
+			        .setContent("<b>" + d.properties.street + "</b> is " + d.properties.length + "km long.")
+			        .openOn(map);
+			});
+			var transition_destination = -1;
+			feature.on("mousemove",function(d){
+		        d3.select(this).transition().duration(2500).ease('bounce')
+		          .style("stroke","#0f0")
+		          .attr("transform", "translate(0,"+transition_destination*50+")");
+		        transition_destination=transition_destination*(-1);
+		     });
+		     /*
+			feature.on("mouseout",function(d){
+		        d3.select(this).transition().duration(2500).ease('bounce')
+		          .style("stroke","#0f0")
+		          .attr("transform", "translate(0,-50)");
+			});
+		     */
+			
+			//******Additional: hide/show overlay ******
+		      var content = "hide overlay", color='#070';
+		      svgContainer.append("text").text(content)
+		          .attr("x", 50).attr("y", 50)
+		          .style("font-size","30px").style("stroke",color)
+		          .on("mouseover",function(d){
+		              if(content=='hide overlay'){
+		                content='show overlay';color='#f70'; 
+		                group.selectAll('path').remove();
+		              }
+		              else {
+		               content='hide overlay';color='#070';
+		               setFeature();
+		               reset();
+		              }
+		              d3.select(this).text(content).style("stroke",color)
+		      });
+		      alert("overlay");
+		    //this is just a function from the existing code...as I need it to restore the removed paths
+		      function setFeature(){
+		        feature = group.selectAll("path")
+		          .data(collection2.features)
+		          .enter()
+		          .append("path")
+		          .attr("id","overlay");
+		      }
+		      //***************************
+		});	// end topoJson		
+	});	// end geoJson
+	    
+		
+	
+	function project(point) {
+		var latlng = new L.LatLng(point[1], point[0]);
+		var layerPoint = map.latLngToLayerPoint(latlng);
+		return [layerPoint.x, layerPoint.y];
+	}
+	
+	</script>
+</body>
+</html>

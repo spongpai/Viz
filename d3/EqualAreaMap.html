@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+.graticule {
+  fill: none;
+  stroke: #777;
+  stroke-width: .5px;
+  stroke-opacity: .5;
+}
+
+.land {
+  fill: #222;
+}
+
+.county-boundary {
+  fill: none;
+  stroke: #fff;
+  stroke-width: .5px;
+}
+
+.state-boundary {
+  fill: none;
+  stroke: #fff;
+}
+
+</style>
+<body>
+<script src="//d3js.org/d3.v3.min.js"></script>
+<script src="//d3js.org/topojson.v1.min.js"></script>
+<script src="../js/giscoordinate.js"></script>
+    
+<script>
+
+var width = 960,
+    height = 500;
+
+var projection = d3.geo.albers()
+    .rotate([96, 0])
+    .center([-.6, 38.7])
+    .parallels([29.5, 45.5])
+    .scale(1070)
+    .translate([width / 2, height / 2])
+    .precision(.1);
+
+var path = d3.geo.path()
+    .projection(projection);
+    
+
+
+var graticule = d3.geo.graticule()
+    .extent([[-98 - 45, 38 - 45], [-98 + 45, 38 + 45]])
+    .step([5, 5]);
+
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+svg.append("path")
+    .datum(graticule)
+    .attr("class", "graticule")
+    .attr("d", path);
+
+d3.json("us.json", function(error, us) {
+  if (error) throw error;
+
+  svg.insert("path", ".graticule")
+      .datum(topojson.feature(us, us.objects.land))
+      .attr("class", "land")
+      .attr("d", path);
+
+  console.log(path.bounds(topojson.feature(us, us.objects.land)));
+  /*
+  svg.insert("path", ".graticule")
+      .datum(topojson.mesh(us, us.objects.counties, function(a, b) { return a !== b && !(a.id / 1000 ^ b.id / 1000); }))
+      .attr("class", "county-boundary")
+      .attr("d", path);
+*/
+  svg.insert("path", ".graticule")
+      .datum(topojson.mesh(us, us.objects.states, function(a, b) { return a !== b; }))
+      .attr("class", "state-boundary")
+      .attr("d", path);
+      
+});
+
+//d3.select(self.frameElement).style("height", height + "px");
+
+var svgContainer = d3.select(frameElement).append("svg").attr("width", width + 400).attr("height", height);
+var group= svgContainer.append("g").attr("class", "leaflet-zoom-hide")
+reset();
+
+function reset() {
+	
+	// set this bounds to match with map boundingbox (to fix the location of hide/show overlay)
+	
+	//bounds = [[map.getBounds()._southWest.lng, map.getBounds()._southWest.lat],[map.getBounds()._northEast.lng, map.getBounds()._northEast.lat]]
+    //var bottomLeft = project(bounds[0]),
+    //topRight = project(bounds[1]);
+ 	var bottomLeft = [0, 600];
+ 	var topRight = [500, 0];
+    svgContainer.attr("width", topRight[0] - bottomLeft[0])
+         .attr("height", bottomLeft[1] - topRight[1])
+         .style("margin-left", bottomLeft[0] + "px")
+         .style("margin-top", topRight[1] + "px");
+ 	
+    group.attr("transform", "translate(" + -bottomLeft[0] + "," + -topRight[1] + ")");
+ 	//alert("reset");
+ 	group.selectAll("rect").remove();
+ 	setFeature();
+}
+ 
+function createEmage (emage, emageData){
+	var	color = d3.interpolateRgb("#fff", "#000");
+	
+	//var emageData = convertArray2LalLongData(emage);
+	//var emageData = getArrayLatLong();
+	
+	var emMin = emage.min, emMax = emage.max;
+	
+	/*
+	var swp = project([emage.swLong, emage.swLat]);
+	var nep = project([emage.neLong, emage.neLat]);
+	var emageW = Math.abs(nep[0] - swp[0]);
+	var emageH = Math.abs(nep[1] - swp[1]);
+	*/
+	
+	var emageW = 500;
+	var emageH = 600;
+	
+	//console.log("createEmage emageW/H " + emageW + "," + emageH);
+
+    //console.log("createEmage emageData" + emageData[0].lat + cm + emageData[0].lng + cm + emageData[0].value);
+    var w = emageW/emage.col + 1;
+    var h = emageH/emage.row + 1;
+    var emDiff = emMax - emMin;
+    
+    
+    svg.append("path", ".graticule")
+    .datum(emageData)
+    .append("svg:rect")
+  		.attr("x", function(d) { return d.lat})
+		.attr("y", function(d) { return d.lng})
+		.attr("width", w)
+		.attr("height", h)
+		.attr("fill", function(d) { return color((d.value - emMin)/(emDiff))})
+		.attr("fill-opacity", 0.55)
+		.attr("stroke", "#fff")
+		.attr("cell", function(d) { return "r" + d.x + "c" + d.y})
+		.append("svg:title")
+			   .text(function(d) { return d.value; });
+    
+   
+}
+
+function init(emage, emageData){
+	console.log("emage: " + emage);
+	
+	emagee = emage;
+	//var center = [emage.swLat + (emage.row/2)*emage.latUnit, emage.swLong + (emage.col/2)*emage.longUnit];
+	var center = [ emage.swLat + ((emage.neLat - emage.swLat)/2), 
+	               emage.swLong + ((emage.neLong-emage.swLong)/2)];
+	console.log("center point lat,long: " + center);
+	//map.setView(center, zoom);	// lat,long
+	
+	
+	var data = null,
+		cells = null;
+	
+	/*
+	// show emage cell values on screen
+	var img = "";
+	for(var i = 0; i < emage.image.length; i++){
+		if(i % emage.col == 0)
+			img = img + "<br />" + emage.image[i];
+		else
+			img = img + ", " + emage.image[i];
+	}
+    d3.select("div#image")
+    	.html(img)
+    	.attr("style", "font-size:small;word-wrap: break-word;width: "+width+"px; height: "+height+"px");
+    */
+    
+    // Craet E-mage map overlay
+	createEmage(emage, emageData);
+}
+
+function setFeature(){
+	
+	/*
+	//ds = document.getElementById("dsid").innerHTML;
+	//alert("vizDS " + ds);
+	queue()
+	    	.defer(d3.json, "webresources/datasourceservice/dsemage/"+ds)
+	    	//.defer(d3.json, "temp/ds/"+ds+".json")
+	    	.await(ready);
+	function ready(error, emage) {
+		 document.getElementById("st").innerHTML = emage.startTimeStr;
+		 document.getElementById("et").innerHTML = emage.endTimeStr;
+		 document.getElementById("min").innerHTML = emage.min;
+		 document.getElementById("max").innerHTML = emage.max;
+		init(emage);
+	}
+	*/
+	// set emage properties
+	
+	d3.text("../data/array/AOD-20080101.csv", function(text) {
+		var value = d3.csv.parseRows(text).map(function(row){	
+			return row.map(Number);		// using map function to process each item, and convert to Number
+		});
+		d3.text("../data/array/LATITUDE", function(text) {
+			var latitude = d3.csv.parseRows(text).map(function(row){ return row.map(Number)});
+			d3.text("../data/array/LONGITUDE", function(text) {
+				  var longitude = d3.csv.parseRows(text).map(function(row){ return row.map(Number)});
+				  //console.log(latitude);
+				  //console.log(longitude);
+				  //console.log(value);
+				  //console.log("row:" + value.length + ",col:" + value[0].length);
+				  [emage, em] = setEmageLayer(value, latitude, longitude);
+				  init(emage, em);
+			});
+			  
+		});
+	});
+	
+}
+
+function setEmageLayer(value, latitude, longitude) {
+	var em = [];
+	var min = 999999, max = -999999;	// value
+	var neLat = -999, neLong = -999, swLat = 999, swLong = 999;
+	var nrows = value.length;
+	var ncols = value[0].length;
+	var minLatRow = [], minLongRow = [], maxLatRow = [], maxLongRow = [];
+	for(var i = 0; i < nrows; i++){
+		minLatRow[i] = 999;
+		minLongRow[i] = 999;
+		maxLatRow[i] = -999;
+		maxLongRow[i] = -999;
+		for(var j = 0; j < ncols; j++){
+			lng = longitude[i][j], lat = latitude[i][j]
+			if(lat != -360 && lng != -360){
+				if(lat < minLatRow[i]) minLatRow[i] = lat;
+				if(lat > maxLatRow[i]) maxLatRow[i] = lat;
+				if(lng < minLongRow[i]) minLongRow[i] = lng;
+				if(lng > maxLongRow[i]) maxLongRow[i] = lng;
+			}
+		}
+	}
+	for(var i = 0; i < nrows; i++){
+		for(var j = 0; j < ncols; j++){
+			var v = value[i][j], lng = longitude[i][j], lat = latitude[i][j]
+			if(v != -1 && lat != -360 && lng != -360){
+				if(v < min) min = v;
+				if(v > max) max = v;
+				if(lat > neLat) neLat = lat;
+				if(lat < swLat) swLat = lat;
+				if(lng > neLong) neLong = lng;
+				if(lng < swLong) swLong = lng;
+				//var start = [-121.7453, 24.0386];
+				//var end = [-121.6345, 24.0668];
+				//console.info(gis.calculateDistance(start, end));
+				var start = [minLongRow[i], minLatRow[i]];
+				var end = [maxLongRow[i], maxLatRow[i]];
+				var start_coord = [lng, lat];
+				var next_coord = [longitude[i][j+1], latitude[i][j+1]];
+				
+				
+			    var distance = 6000;	// in meters
+			    var bearing = gis.getBearing(start_coord, next_coord);
+				var coord_left = gis.createCoord(start_coord, bearing, -distance);
+				var coord_right = gis.createCoord(start_coord, bearing, distance);
+				
+			    //console.info(start_coord, coord);
+			    var total_distance = gis.calculateDistance(start_coord, coord_left);
+			    if(i %50 == 0 && j %50 == 0)
+			    	console.info(i,j,start, end, start_coord, next_coord, coord_left, coord_right, total_distance);
+			    if(i %50 == 0 && j %50 == 1)
+			    	console.info(i,j,start, end, start_coord, next_coord, coord_left, coord_right, total_distance);
+			   
+			    /*
+				feature = {
+			          "geometry":{"type":"Polygon", "coordinates": box.coordinates}, 
+			          "properties": {"theme": null, "value": sttPoint[x].result}, 
+			          "type":"Feature"
+			        };
+			    featureArr.push(feature);
+*/
+				
+				//console.log(lng, neLong, swLong);
+				//var p = project([lng, lat]);
+				//console.log(p);
+				//latLongArr.push(p);
+				em.push({
+					x: i,
+					y: j,
+					lat: lat,//p[0],
+					lng: lng,// p[1],
+					value: v
+				});
+				
+			}
+		}
+	}
+	
+	var emage = new Emage(ncols, nrows, 0.1, 0.1, swLong, swLat, neLong, neLat, min, max);
+	return [emage, em];
+}
+function Emage(col, row, latunit, longunit, swLong, swLat, neLong, neLat, min, max){
+	this.col = col;
+	this.row = row;
+	this.longunit = longunit;
+	this.latunit = latunit;
+	this.swLong = swLong;
+	this.swLat = swLat;
+	this.neLong = neLong;
+	this.neLat = neLat;
+	this.min = min;
+	this.max = max;
+}
+
+</script>

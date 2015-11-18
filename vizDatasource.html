@@ -1,0 +1,496 @@
+<style>
+#map {
+	width: 100%;
+	position: absolute;
+	height: 600px;
+	margin: 0;
+	padding: 0;
+	border: 1px solid black;
+	border-radius: 8px;
+}
+
+.legend {
+	text-align: left;
+	line-height: 18px;
+	color: #555;
+}
+
+.legend i {
+	width: 18px;
+	height: 18px;
+	float: left;
+	margin-right: 8px;
+	opacity: 0.7;
+}
+</style>
+<script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+<link rel="stylesheet"
+	href="http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.css" />
+<script src="http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.js"></script>
+<script src="js/proj4.js"></script>
+<script src="js/proj4leaflet.js"></script>
+<script src="js/giscoordinate.js"></script>
+<script src="http://mbostock.github.com/d3/d3.v2.js?2.8.1"></script>
+<script src="js/jquery.jsonp-2.3.0.min.js"></script>
+<!-- Load Esri Leaflet from CDN -->
+<script src="//cdn.jsdelivr.net/leaflet.esri/1.0.0/esri-leaflet.js"></script>
+
+
+<div>
+	Data source ID: <span id="dsid"><%=dsID%></span>,
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Start Time: <span id="st"></span>,
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;End Time: <span id="et"></span>,
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Min Value: <span id="min"></span>,
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Max Value: <span id="max"></span>
+	<div id="map"></div>
+	<div id="image"></div>
+</div>
+
+<script>
+	//alert("inside vizDS.html");
+	var width = 800,
+	height = 420, 
+	zoom = 4;
+	var cm = ", ";
+	var ds = document.getElementById("dsid").innerHTML;
+
+	
+function loaddata(){
+	ds = document.getElementById("dsid").innerHTML;
+	//alert(ds);
+	group.selectAll("rect").remove();
+ 	setFeature();
+}
+
+function project(point) {
+	var latlng = new L.LatLng(point[1], point[0]);
+	var layerPoint = map.latLngToLayerPoint(latlng);
+	return [layerPoint.x, layerPoint.y];
+}
+
+d3.select("div#map").attr("style", "width: "+width+"px; height: "+height+"px");
+
+//albers = proj4('+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 '
+//        + '+x_0=0 +y_0=0 +ellps=sphere +nadgrids=@null '
+//       + '+towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+  
+// use this one
+//var map = L.map('map').setView([39,-111], zoom);	// lat,long
+
+//var map = L.map('map').setView([52.52,13.384], 13);
+
+/*
+  create new Proj4Leaflet CRS:
+  1. Proj4 and WKT definitions can be found at sites like http://epsg.io
+  2. appropriate values to supply to the resolution and origin constructor options can be found in the ArcGIS Server RESTful tile server endpoint (ex: http://mapserv.utah.gov/arcgis/rest/services/BaseMaps/Terrain/MapServer)
+*/
+var crs = new L.Proj.CRS("EPSG:42303","+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs", {
+	resolutions:[8192, 4096, 2048, 1024, 512, 256, 128],
+	origin:[0,0]
+	
+});
+//var map = new L.Map('map', {crs:crs}).setView([39,-111], zoom);
+
+var map = new L.Map('map').setView([39,-111], zoom);
+var layer = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+	  attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="http://cartodb.com/attributions">CartoDB</a>'
+	});
+	map.addLayer(layer);
+var legend = L.control({position: 'bottomright'});
+	/*
+L.tileLayer('http://api.geosition.com/tile/osm-bright-3006/{z}/{x}/{y}.png', {
+	  maxZoom: crs.options.resolutions.length,
+	  minZoom: 0,
+	  continuousWorld: true,
+	  attribution: 'Map data © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, Imagery © 2013 <a href="http://www.kartena.se/">Kartena</a>'
+	}).addTo(map);
+*/
+// Base Layers
+/*
+var toolserver = L.tileLayer('http://{s}.www.toolserver.org/tiles/bw-mapnik/{z}/{x}/{y}.png');
+var stamen = L.tileLayer('http://{s}.tile.stamen.com/toner/{z}/{x}/{y}.png', 
+		{attribution: 'Add some attributes here!'});
+var openStreet = L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+var baseLayers = {
+	"Stamen": stamen, 
+	"Toolserver-mapnik":toolserver,
+	"OpenStreetMap": openStreet
+};
+L.control.layers(baseLayers).addTo(map);
+ */
+ 
+// adding a svgContainer to the overlay pane of the Leaflet-map 
+var svgContainer = d3.select(map.getPanes().overlayPane).append("svg").attr("width", width + 400).attr("height", height);
+var group= svgContainer.append("g").attr("class", "leaflet-zoom-hide")
+var pathh = d3.geo.path().projection(project);
+
+var overlays, emagee, feature, bounds;
+	
+setFeature();
+
+function withinMapBounds(lng, lat){
+	if(lng >= map.getBounds()._southWest.lng && lng <= map.getBounds()._northEast.lng
+    		&& lat >= map.getBounds()._southWest.lat && map.getBounds()._northEast.lat)
+    	return true;
+    else
+    	return false;
+    	
+}
+
+function reset() {
+	
+	// set this bounds to match with map boundingbox (to fix the location of hide/show overlay)
+	bounds = [[map.getBounds()._southWest.lng, map.getBounds()._southWest.lat],[map.getBounds()._northEast.lng, map.getBounds()._northEast.lat]]
+    var bottomLeft = project(bounds[0]),
+    topRight = project(bounds[1]);
+ 
+    svgContainer.attr("width", topRight[0] - bottomLeft[0])
+         .attr("height", bottomLeft[1] - topRight[1])
+         .style("margin-left", bottomLeft[0] + "px")
+         .style("margin-top", topRight[1] + "px");
+ 	
+    group.attr("transform", "translate(" + -bottomLeft[0] + "," + -topRight[1] + ")");
+ 	//alert("reset");
+ 	group.selectAll("rect").remove();
+ 	createEmage(emagee);
+ }
+
+map.on("viewreset", reset);
+map.on("drag", reset);
+map.on('zoomend', function() {
+    console.log('zoomend', map.getZoom());
+    zoom = map.getZoom();
+    map.removeLayer(geoLayer);
+    map.removeLayer(legend);
+    setEmageLayer(value, latitude, longitude)
+});
+var value, latitude, longitude;
+function Emage(col, row, latunit, longunit, swLong, swLat, neLong, neLat, min, max){
+	this.col = col;
+	this.row = row;
+	this.longunit = longunit;
+	this.latunit = latunit;
+	this.swLong = swLong;
+	this.swLat = swLat;
+	this.neLong = neLong;
+	this.neLat = neLat;
+	this.min = min;
+	this.max = max;
+}
+
+
+
+function setFeature(){
+	
+	/*
+	//ds = document.getElementById("dsid").innerHTML;
+	//alert("vizDS " + ds);
+	queue()
+	    	.defer(d3.json, "webresources/datasourceservice/dsemage/"+ds)
+	    	//.defer(d3.json, "temp/ds/"+ds+".json")
+	    	.await(ready);
+	function ready(error, emage) {
+		 document.getElementById("st").innerHTML = emage.startTimeStr;
+		 document.getElementById("et").innerHTML = emage.endTimeStr;
+		 document.getElementById("min").innerHTML = emage.min;
+		 document.getElementById("max").innerHTML = emage.max;
+		init(emage);
+	}
+	*/
+	// set emage properties
+	
+	d3.text("data/array/AOD-20080101.csv", function(text) {
+		value = d3.csv.parseRows(text).map(function(row){	
+			return row.map(Number);		// using map function to process each item, and convert to Number
+		});
+		d3.text("data/array/LATITUDE", function(text) {
+			latitude = d3.csv.parseRows(text).map(function(row){ return row.map(Number)});
+			d3.text("data/array/LONGITUDE", function(text) {
+				  longitude = d3.csv.parseRows(text).map(function(row){ return row.map(Number)});
+				  //console.log(latitude);
+				  //console.log(longitude);
+				  //console.log(value);
+				  //console.log("row:" + value.length + ",col:" + value[0].length);
+				  [emage, em] = setEmageLayer(value, latitude, longitude);
+				  init(emage, em);
+			});
+			  
+		});
+	});
+	
+}
+
+function setEmageLayer(value, latitude, longitude) {
+	var em = [];
+	var min = 999999, max = -999999;	// value
+	var neLat = -999, neLong = -999, swLat = 999, swLong = 999;
+	var nrows = value.length;
+	var ncols = value[0].length;
+	var minLatRow = [], minLongRow = [], maxLatRow = [], maxLongRow = [];
+	
+	var featureArr = [];
+    var feature;
+    var step = 10-zoom;
+    if(step <0) step = 1;
+    for(var i = 0; i < nrows; i = i + step){
+		for(var j = 0; j < ncols; j = j + step){
+			var v = value[i][j], lng = longitude[i][j], lat = latitude[i][j]
+			if(v != -1 && lat != -360 && lng != -360 && withinMapBounds(lng, lat)){
+				if(v < min) min = v;
+				if(v > max) max = v;
+				if(lat > neLat) neLat = lat;
+				if(lat < swLat) swLat = lat;
+				if(lng > neLong) neLong = lng;
+				if(lng < swLong) swLong = lng;
+				//var start = [-121.7453, 24.0386];
+				//var end = [-121.6345, 24.0668];
+				//console.info(gis.calculateDistance(start, end));
+				//var start = [minLongRow[i], minLatRow[i]];
+				//var end = [maxLongRow[i], maxLatRow[i]];
+				//var start_coord = [lng, lat];
+				//var next_coord = [longitude[i][j+1], latitude[i][j+1]];
+				
+				var bbox_coord = gis.getBBOX(lng, lat, 12000*step);
+				//var d1 = gis.calculateDistance(bbox_coord[0], bbox_coord[1]);
+				//var d2 = gis.calculateDistance(bbox_coord[1], bbox_coord[2]);
+				//var d3 = gis.calculateDistance(bbox_coord[2], bbox_coord[3]);
+				//var d4 = gis.calculateDistance(bbox_coord[3], bbox_coord[0]);
+				//if(i %50 == 0 && (j %50 == 0 || j %50 == 1)){
+					var coord = [];
+					coord[0] = bbox_coord;
+					feature = {
+					          "geometry":{"type":"Polygon", "coordinates": coord}, 
+					          "properties": {"theme": null, "value": v}, 
+					          "type":"Feature"
+					        };
+					    featureArr.push(feature);
+					    //console.info(i, j, start_coord, next_coord, bbox_coord, d1, d2, d3, d4);
+					    //console.log(feature);
+				//}
+				
+				//var distance = 6000;	// in meters
+			    //var bearing = gis.getBearing(start_coord, next_coord);
+				//var coord_left = gis.createCoord(start_coord, bearing, -distance);
+				//var coord_right = gis.createCoord(start_coord, bearing, distance);
+				
+			    //console.info(start_coord, coord);
+			    //var total_distance = gis.calculateDistance(start_coord, coord_left);
+			    //if(i %50 == 0 && j %50 == 0)
+			    //	console.info(i,j,start, end, start_coord, next_coord, coord_left, coord_right, total_distance);
+			    //if(i %50 == 0 && j %50 == 1)
+			    //	console.info(i,j,start, end, start_coord, next_coord, coord_left, coord_right, total_distance);
+			   
+			   
+				/*
+				//console.log(lng, neLong, swLong);
+				var p = project([lng, lat]);
+				//console.log(p);
+				//latLongArr.push(p);
+				em.push({
+					x: i,
+					y: j,
+					lat: p[0],
+					lng: p[1],
+					value: v
+				});
+				*/
+			}
+		}
+	}
+	
+	//var newGeo = new Object();
+    //newGeo.type = "FeatureCollection";
+    //newGeo.features = featureArr;
+    updateRange(min, max);
+	
+    console.log('feature array length: ', featureArr.length);
+    //console.log(featureArr);
+    geoLayer = L.geoJson(featureArr, {
+        style : style,
+        //onEachFeature: onEachFeature
+
+      });
+      geoLayer.addTo(map);
+
+   	var emage = new Emage(ncols, nrows, 0.1, 0.1, swLong, swLat, neLong, neLat, min, max);
+	return [emage, em];
+}
+
+function style(feature) {
+	//alert(getColor(feature.properties.value));
+    return {
+      fillColor: getColor(feature.properties.value),
+      weight: 0,
+      //opacity: 1,
+      //color: 'white',
+      //dashArray: '3',
+      fillOpacity: 0.8
+    };
+  }
+  
+var colorScheme = ['rgb(165,0,38)','rgb(215,48,39)','rgb(244,109,67)','rgb(253,174,97)','rgb(254,224,139)','rgb(217,239,139)','rgb(166,217,106)','rgb(102,189,99)','rgb(26,152,80)','rgb(0,104,55)'];
+
+var value_range = [];
+
+legend.onAdd = function (map) {
+	  //updateRange();
+  var div = L.DomUtil.create('div', 'info legend'),
+//  grades = [0, 12.1, 35.5, 55.5, 150.5, 250.5, 350.5],
+  grades = value_range,
+      labels = [];
+
+  // loop through our density intervals and generate a label with a colored square for each interval
+  for (var i = 0; i < grades.length; i++) {
+      div.innerHTML +=
+          '<i style="background:' + getColor(grades[i]+0.000001) + '"></i> ' +
+          grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+  }
+
+  return div;
+};
+
+
+
+function updateRange(min, max){
+	  //var min = Math.round($('#minVal').val()*10000)/10000;
+	//	var max = Math.round($('#maxVal').val()*10000)/10000;
+		var step = Math.round(((max - min) / 7)*10000)/10000 ;
+		//console.log(min + ", " + max + ", " + step);
+		for(var i = 0; i < 7; i++){
+			value_range[i] = Math.round((min + (i * step))*10000)/10000;
+			console.log(value_range[i]);
+		}
+		legend.addTo(map);
+}
+
+function getColor(d) {
+  if(d == "NaN")
+    return "#ffffff";
+  else
+  	return       d > value_range[6] ? '#7E0023'://'#fdae61'://'#FC4E2A' :
+          d > value_range[5] ? '#7E0023'://'#fee08b'://'#FD8D3C' :
+          d > value_range[4] ? '#99004C'://'#d9ef8b'://'#FEB24C' :
+          d > value_range[3] ? '#FF0000'://'#a6d96a':
+          d > value_range[2] ? '#FF7E00'://'#66bd63':
+          d > value_range[1] ? '#FFFF00'://'#1a9850'://'#FED976' :
+         		 '#00E400'; //'#006837';//'#FFEDA0';
+         		 
+    //return //d > 9 ? '#a50026'://'#800026' :
+           //d > 8 ? '#d73027'://'#BD0026' :
+    //return      d > 500.4 ? //'#f46d43'://'#E31A1C' :
+  	  /*
+    return       d > 350.4 ? '#7E0023'://'#fdae61'://'#FC4E2A' :
+           d > 250.4 ? '#7E0023'://'#fee08b'://'#FD8D3C' :
+           d > 150.4 ? '#99004C'://'#d9ef8b'://'#FEB24C' :
+           d > 55.4 ? '#FF0000'://'#a6d96a':
+           d > 35.4 ? '#FF7E00'://'#66bd63':
+           d > 12 ? '#FFFF00'://'#1a9850'://'#FED976' :
+          		 '#00E400'; //'#006837';//'#FFEDA0';
+          		 */
+}
+
+
+function getArrayLatLong(emage){
+	var em = [];
+	for(var i = 0; i < emage.image.length; i++){
+		if(emage.image[i] != "NaN" 	){
+			var p = project(array2LongLat(emage, i));
+			latLongArr.push(p);
+			//console.log("lat-long: ["+i+"]" + p + ", " + emage.image[i]);
+			em.push({
+				x: i/emage.col,
+				y: i%emage.col,
+				lat: p[0],
+				lng: p[1],// - (i%emage.col)*zoom/2,
+				value: emage.image[i]
+			});
+		}
+	}
+	return em;
+}
+
+var latLongArr = [], featureArr = [];
+
+function array2LongLat(emage, i){
+	// note! in drawing rectangle the starting point x,y is at the topleft
+	var lat = (emage.row - (Math.floor(i/emage.col))) * emage.latUnit + emage.swLat;
+	var lng = emage.swLong + (Math.floor(i%emage.col))*emage.longUnit;
+	//console.log("i [lng, lat]" + i + " [" + lng + "," + lat + "]");
+	return [lng, lat];
+}
+
+
+function init(emage, emageData){
+	console.log("emage: " + emage);
+	
+	emagee = emage;
+	//var center = [emage.swLat + (emage.row/2)*emage.latUnit, emage.swLong + (emage.col/2)*emage.longUnit];
+	var center = [ emage.swLat + ((emage.neLat - emage.swLat)/2), 
+	               emage.swLong + ((emage.neLong-emage.swLong)/2)];
+	console.log("center point lat,long: " + center);
+	map.setView(center, zoom);	// lat,long
+	
+	
+	var data = null,
+		cells = null;
+	
+	/*
+	// show emage cell values on screen
+	var img = "";
+	for(var i = 0; i < emage.image.length; i++){
+		if(i % emage.col == 0)
+			img = img + "<br />" + emage.image[i];
+		else
+			img = img + ", " + emage.image[i];
+	}
+    d3.select("div#image")
+    	.html(img)
+    	.attr("style", "font-size:small;word-wrap: break-word;width: "+width+"px; height: "+height+"px");
+    */
+    
+    // Craet E-mage map overlay
+	createEmage(emage, emageData);
+}
+
+function createEmage (emage, emageData){
+	var	color = d3.interpolateRgb("#fff", "#000");
+	
+	//var emageData = convertArray2LalLongData(emage);
+	//var emageData = getArrayLatLong();
+	
+	var emMin = emage.min, emMax = emage.max;
+	
+	var swp = project([emage.swLong, emage.swLat]);
+	var nep = project([emage.neLong, emage.neLat]);
+	var emageW = Math.abs(nep[0] - swp[0]);
+	var emageH = Math.abs(nep[1] - swp[1]);
+	
+	//console.log("createEmage emageW/H " + emageW + "," + emageH);
+
+    //console.log("createEmage emageData" + emageData[0].lat + cm + emageData[0].lng + cm + emageData[0].value);
+    var w = emageW/emage.col + 1;
+    var h = emageH/emage.row + 1;
+    var emDiff = emMax - emMin;
+    /*
+    feature = group.selectAll("path")
+			.data(emageData)
+			.enter().append("svg:rect")
+				.attr("x", function(d) { return d.lat})
+				.attr("y", function(d) { return d.lng})
+				.attr("width", w)
+				.attr("height", h)
+				.attr("fill", function(d) { return color((d.value - emMin)/(emDiff))})
+				.attr("fill-opacity", 0.55)
+				//.attr("stroke", "#fff")
+				.attr("cell", function(d) { return "r" + d.x + "c" + d.y})
+		    .append("svg:title")
+			   .text(function(d) { return d.value; });
+    */
+}
+setInterval('loaddata()', 3600000);	// callling loaddata after 1min
+	
+	</script>
+
+
+
+

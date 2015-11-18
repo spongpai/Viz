@@ -44,14 +44,32 @@
 </head>
 <body>
 	<div id="map"></div>
+	File Name
+	<select id="file">
+  <option value="query_geojson">query_geojson</option>
+  <option value="interp_PM2_5_geojson">interp_PM2_5_geojson</option>
+  <option value="pm2_5_geojson">pm2_5_geojson</option>
+  <option value="pm2_5_integrate_geojson">pm2_5_integrate_geojson</option>
+  <option value="relative_humility_geojson">relative_humility_geojson</option>
+  <option value="wind_direction_geojson">wind_direction_geojson</option>
+  <option value="wind_speed_geojson">wind_speed_geojson</option>
+  <option value="otemp_geojson">otemp_geojson</option>
+  <option value="bar_press_geojson">bar_press_geojson</option>
+  <option value="sol_rad_geojson">sol_rad_geojson</option>
+  <option value="no2_geojson">no2_geojson</option>
+  <option value="so2_geojson">so2_geojson</option>
+  <option value="ozone_hourly_geojson">ozone_hourly_geojson</option>
+</select>
   DS ID<input type="text" id="ds" width="50px" value="ds999" />
   speed (ms)<input type="text" id="speed" width="100px" value="1000" />
   <input type="button" value="Auto Run" onclick="startAutoRender();" />
   <input type="button" value="Stop" onclick="stopAutoRender()" />
   <br />
-  Start <input type="text" id="start" width="100px" value="2013-08-05 "/> 
+  Start <input type="text" id="start" width="100px" value="2010-10-10"/> 
   ... Stop <input type="text" id="end" width="100px" value="2013-08-10"/>
   <input type="button" value="Get Data" onclick="getData();" />
+  <input type="text" id="minVal" width="100px" value="0.0065"/> 
+  <input type="text" id="maxVal" width="100px" value="0.0665"/> 
   <hr />
   Progress: <span id="dots"></span>
   <div id="theme">Theme: </div>
@@ -127,13 +145,18 @@
 
 
   //var jsonFile = "data/testgeojson.json";
-  var jsonFile = "http://vanilla.ics.uci.edu:8081/eventshoplinux/webresources/mongodb/eventshoplinux/ds999/timerange/2013-08-05/2013-08-10/startTimeStr";  //"data/ds999.json";
+  //var jsonFile = "http://vanilla.ics.uci.edu:8081/eventshoplinux/webresources/mongodb/eventshoplinux/ds999/timerange/2013-08-05/2013-08-10/startTimeStr";  //"data/ds999.json";
+  var jsonFile = "data/interp_pm2_5_geojson";
   var api_cloudmade = "bd69fdff55d44d888427707d0815fbdd";
   $('#map').append("<div id='map_" + 1 + "'></div>")
-  var map = L.map('map').setView([39, -121.5], 7);
-  L.tileLayer('http://{s}.tile.cloudmade.com/'+api_cloudmade+'/997/256/{z}/{x}/{y}.png', {
-      attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://cloudmade.com">CloudMade</a>',
-      maxZoom: 18
+  var map = L.map('map').setView([36.5, -118.5], 6);
+  //L.tileLayer('http://{s}.tile.cloudmade.com/'+api_cloudmade+'/997/256/{z}/{x}/{y}.png', {
+  //    attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://cloudmade.com">CloudMade</a>',
+  //    maxZoom: 18
+  //}).addTo(map);
+  // add an OpenStreetMap tile layer
+  L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
   var geoLayer;
   var featureCollection = [];
@@ -142,7 +165,7 @@
   var selectedId = 0;
   
   // read geoJson file
-  $.getJSON( jsonFile, renderFeatures);
+  //$.getJSON( jsonFile, renderFeatures);
 
   // jsonFile += '/callback_function';
   // $.jsonp({
@@ -201,24 +224,46 @@
   /*
     Thematic map visualization
   */
+  
+/*
+  0	12.0	0	50	Good
+  12.1	35.4	51	100	Moderate
+  35.5	55.4	101	150	Unhealthy for Sensitive Groups
+  55.5	150.4	151	200	Unhealthy
+  150.5	250.4	201	300	Very Unhealthy
+  250.5	350.4	301	400	Hazardous
+  350.5	500.4	401	500	Hazardous
+  */
   var colorScheme = ['rgb(165,0,38)','rgb(215,48,39)','rgb(244,109,67)','rgb(253,174,97)','rgb(254,224,139)','rgb(217,239,139)','rgb(166,217,106)','rgb(102,189,99)','rgb(26,152,80)','rgb(0,104,55)'];
 
   function getColor(d) {
+	
     if(d == "NaN")
       return "#ffffff";
     else
-      return d > 90 ? '#a50026'://'#800026' :
-             d > 80 ? '#d73027'://'#BD0026' :
-             d > 70 ? '#f46d43'://'#E31A1C' :
-             d > 60 ? '#fdae61'://'#FC4E2A' :
-             d > 50 ? '#fee08b'://'#FD8D3C' :
-             d > 40 ? '#d9ef8b'://'#FEB24C' :
-             d > 30 ? '#a6d96a':
-             d > 20 ? '#66bd63':
-             d > 10 ? '#1a9850'://'#FED976' :
-                      '#006837';//'#FFEDA0';
+    	return       d > group[6] ? '#7E0023'://'#fdae61'://'#FC4E2A' :
+            d > group[5] ? '#7E0023'://'#fee08b'://'#FD8D3C' :
+            d > group[4] ? '#99004C'://'#d9ef8b'://'#FEB24C' :
+            d > group[3] ? '#FF0000'://'#a6d96a':
+            d > group[2] ? '#FF7E00'://'#66bd63':
+            d > group[1] ? '#FFFF00'://'#1a9850'://'#FED976' :
+           		 '#00E400'; //'#006837';//'#FFEDA0';
+           		 
+      //return //d > 9 ? '#a50026'://'#800026' :
+             //d > 8 ? '#d73027'://'#BD0026' :
+      //return      d > 500.4 ? //'#f46d43'://'#E31A1C' :
+    	  /*
+      return       d > 350.4 ? '#7E0023'://'#fdae61'://'#FC4E2A' :
+             d > 250.4 ? '#7E0023'://'#fee08b'://'#FD8D3C' :
+             d > 150.4 ? '#99004C'://'#d9ef8b'://'#FEB24C' :
+             d > 55.4 ? '#FF0000'://'#a6d96a':
+             d > 35.4 ? '#FF7E00'://'#66bd63':
+             d > 12 ? '#FFFF00'://'#1a9850'://'#FED976' :
+            		 '#00E400'; //'#006837';//'#FFEDA0';
+            		 */
   }
 
+  
   function style(feature) {
     return {
       fillColor: getColor(feature.properties.value),
@@ -245,6 +290,7 @@
     }
     info.update(layer.feature);
   }
+  
   function resetHighlight(e) {
     geoLayer.resetStyle(e.target);
     info.update();
@@ -263,17 +309,49 @@
   }
   
  function renderFeatures(data){
+    featureCollection = [];
+    timeLineStart = [];
+    timeLineEnd = [];
     $.each( data, function( key, value ){
-      featureCollection.push(value.sttBoxGeoJson);
-      timeLineStart.push(value.startTimeStr);
-      timeLineEnd.push(value.endTimeStr);
-      theme = value.theme;
-      console.log("push in array " + key);
+    	var sDate = $('#start').val();
+    	//alert(sDate);
+    	//alert(value.startTimeStr.indexOf(sDate) > -1);
+    	if(value.startTimeStr.indexOf(sDate) > -1){
+	      featureCollection.push(value.sttBoxGeoJson);
+	      timeLineStart.push(value.startTimeStr);
+	      timeLineEnd.push(value.endTimeStr);
+	      theme = value.theme;
+	      console.log("push in array " + key);
+	    }
     });
     //$.each(featureCollection, function(key, x){
       //console.log("show in array " + key)
     //});
-    
+    alert(timeLineStart.length);
+    renderTimeLine(timeLineStart);
+    //renderMap(featureCollection, selectedId);
+  }
+ 
+ function renderFeaturesTest(data){
+    featureCollection = [];
+    timeLineStart = [];
+    timeLineEnd = [];
+    $.each( data, function( key, value ){
+    	//var sDate = $('#start').val();
+    	//alert(sDate);
+    	//alert(value.startTimeStr.indexOf(sDate) > -1);
+    	//if(value.startTimeStr.indexOf(sDate) > -1){
+	      featureCollection.push(value.sttBoxGeoJson);
+	      timeLineStart.push(value.ts_start);
+	      timeLineEnd.push(value.ts_end);
+	      theme = value.theme;
+	      console.log("push in array " + key);
+	    //}
+    });
+    //$.each(featureCollection, function(key, x){
+      //console.log("show in array " + key)
+    //});
+    alert(timeLineStart.length);
     renderTimeLine(timeLineStart);
     //renderMap(featureCollection, selectedId);
   }
@@ -318,13 +396,22 @@
       map.removeLayer(geoLayer);
   }
   function getData(){
-	  var mongoUrl = "http://vanilla.ics.uci.edu:8081/eventshoplinux/webresources/mongodb/eventshoplinux/";
+/*	  var mongoUrl = "http://vanilla.ics.uci.edu:8081/eventshoplinux/webresources/mongodb/eventshoplinux/";
 	  var ds = $('#ds').val();
 	  var sDate = $('#start').val();
 	  var eDate = $('#end').val();
 	  mongoUrl += ds +"/timerange/"+ sDate + "/" + eDate + "/startTimeStr";
 	  console.log(mongoUrl);
 	  $.getJSON( mongoUrl, renderFeatures);
+	  */
+	  var fileName = "data/" + $('#file').val();;
+	  console.log(fileName);
+	  updateRange();
+	  if(fileName.indexOf("query", 0) > 0)
+	  	$.getJSON( fileName, renderFeaturesTest);
+	  else
+		$.getJSON( fileName, renderFeatures);
+	  
   }
   
   // Custom Info Control
@@ -348,16 +435,39 @@
   // Custom Legend Control
   var legend = L.control({position: 'bottomright'});
 
+  /*
+  0	12.0	0	50	Good
+  12.1	35.4	51	100	Moderate
+  35.5	55.4	101	150	Unhealthy for Sensitive Groups
+  55.5	150.4	151	200	Unhealthy
+  150.5	250.4	201	300	Very Unhealthy
+  250.5	350.4	301	400	Hazardous
+  350.5	500.4	401	500	Hazardous
+  */
+  var group = [];
+	
+  function updateRange(){
+	  var min = Math.round($('#minVal').val()*10000)/10000;
+		var max = Math.round($('#maxVal').val()*10000)/10000;
+		var step = Math.round(((max - min) / 7)*10000)/10000 ;
+		console.log(min + ", " + max + ", " + step);
+		for(var i = 0; i < 7; i++){
+			group[i] = Math.round((min + (i * step))*10000)/10000;
+			console.log(group[i]);
+		}
+  }
+ 
   legend.onAdd = function (map) {
-
+	  updateRange();
     var div = L.DomUtil.create('div', 'info legend'),
-        grades = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90],
+//    grades = [0, 12.1, 35.5, 55.5, 150.5, 250.5, 350.5],
+    grades = group,
         labels = [];
 
     // loop through our density intervals and generate a label with a colored square for each interval
     for (var i = 0; i < grades.length; i++) {
         div.innerHTML +=
-            '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' +
+            '<i style="background:' + getColor(grades[i]+0.000001) + '"></i> ' +
             grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
     }
 
@@ -367,7 +477,8 @@
   legend.addTo(map);
 
   function renderTimeLine(tl){
-    $('#theme').append(theme);
+    $('#theme').html("Theme" + theme);
+    $('#content').html("");
     $.each(tl, function(i, time){
       $('#content').append("<div id='tls" + i + "' class='start-time unselected'>"+time+"</div>");
       //$('.selected').css({'background-color': '0000ff'});
@@ -428,13 +539,15 @@
   */
 
 /* Initialize the SVG layer */
+ 
+ /*
 map._initPathRoot()
  
-/* We simply pick up the SVG from the map object */
+// We simply pick up the SVG from the map object 
 var svg = d3.select("#map").select("svg"),
 g = svg.append("g");
 d3.json("data/collection_new.json", function(collection_new) {
-/* Add a LatLng object to each item in the dataset */
+// Add a LatLng object to each item in the dataset 
 collection_new[0].sttBoxGeoJson.features.forEach(function(d) {
 d.LatLng = new L.LatLng(d.geometry.coordinates[0][0][1],d.geometry.coordinates[0][0][0]);
 //console.log(d.LatLng);
@@ -451,6 +564,7 @@ feature.attr("r",function(d) { return d.properties.value/1400*Math.pow(2,map.get
 map.on("viewreset", update);
 update();
 })  
+*/
   /*
     $.getJSON( jsonFile, function( data ) {
       var items = [];
