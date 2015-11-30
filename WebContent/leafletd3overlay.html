@@ -1,0 +1,356 @@
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="">
+<meta name="author" content="">
+<link rel="icon" href="../../favicon.ico">
+
+<title>LAB 03</title>
+
+<!-- JQuery -->
+<script src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
+
+<!-- Bootstrap core CSS -->
+<link href="./libraries/bootstrap-3.3.5-dist/css/bootstrap.min.css"
+	rel="stylesheet">
+<script src="./libraries/bootstrap-3.3.5-dist/js/bootstrap.min.js"></script>
+
+<!-- Custom styles for this template -->
+<link
+	href="http://getbootstrap.com/examples/starter-template/starter-template.css"
+	rel="stylesheet">
+
+
+
+<!-- Bootstrap Slider -->
+<script src="./libraries/bootstrap-slider/bootstrap-slider.min.js"></script>
+<link href="./libraries/bootstrap-slider/css/bootstrap-slider.min.css"
+	rel="stylesheet">
+
+
+<!-- D3 Resources -->
+<script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script src="http://d3js.org/queue.v1.min.js"></script>
+
+<!-- Leaflet resources -->
+<script src="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.js"></script>
+<link rel="stylesheet"
+	href="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.css" />
+
+
+
+<!-- Additional style elements for displaying the legend -->
+<style>
+.legend {
+	text-align: left;
+	line-height: 18px;
+	color: #000000;
+}
+
+.info {
+	padding: 8px 8px;
+	background: white;
+	background: rgba(255, 255, 255, 1);
+	box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+	border-radius: 5px;
+}
+
+.info h4 {
+	margin: 0 0 5px;
+	color: #777;
+}
+
+.legend i {
+	width: 18px;
+	height: 18px;
+	float: left;
+	margin-right: 8px;
+	opacity: 1;
+}
+</style>
+</head>
+
+<body>
+
+	<nav class="navbar navbar-inverse navbar-fixed-top">
+		<div class="container">
+			<div class="navbar-header">
+				<button type="button" class="navbar-toggle collapsed"
+					data-toggle="collapse" data-target="#navbar" aria-expanded="false"
+					aria-controls="navbar">
+					<span class="sr-only">Toggle navigation</span> <span
+						class="icon-bar"></span> <span class="icon-bar"></span> <span
+						class="icon-bar"></span>
+				</button>
+				<a class="navbar-brand" href="#">GEO 454 - LAB 03</a>
+			</div>
+
+		</div>
+	</nav>
+
+	<div class="container">
+		<!-- To to make a more intuitive layer selection, add a year slider -->
+		<div class="row" style="padding: 10px 0px 15px 0px">
+			<div class="col-md-9">
+				<div id="jahresSlider">
+					<input id="jahrslider" type="text" value="1990"
+						style="width: 100%;" data-slider-min="1990" data-slider-max="2010"
+						data-slider-step="10" data-slider-value="1990" />
+				</div>
+			</div>
+			<div class="col-md-3">
+				<span id="jahrsliderCurrentSliderValLabel">Prognosejahr: <span
+					id="jahrsliderVal">1990</span></span>
+			</div>
+		</div>
+		<!-- End of year slider -->
+		<!-- Add Map -->
+		<div class="row">
+			<div class="col-md-12">
+				<div id="densityMap" style="height: 600px;"></div>
+			</div>
+		</div>
+	</div>
+	<!-- /.container -->
+
+	<script type="text/javascript">
+ 
+        // Initialisiert den Bootstrap Slider:
+        $("#jahrslider").slider();
+ 
+ 
+        // Load the JSON file(s)
+        queue()
+            .defer(d3.json, "./geom/density1990.json") // Load density1990.json
+            .defer(d3.json, "./geom/density2000.json") // Load density2000.json
+            .defer(d3.json, "./geom/density2010.json") // Load density2010.json
+            .await(loadGeom); // When the CSV is fully loaded, call the function loadGeom
+ 
+        // Function loadGeom. This function is executed as soon as all the files in queue() are loaded
+        function loadGeom(error, density1990, density2000, density2010){
+ 
+            // Get the original value of the slider (the year which is set on page load)
+            sliderVal = $("#jahrsliderVal").text();
+            console.log(sliderVal)
+ 
+            // Store the data for the year in sliderVal in the variable densityDataDSP. This could also be done with a
+            // SWITCH- or an IF-Statement, but using an array has proven to be the fastest.
+            var densityData = {
+                1990: density1990,
+                2000: density2000,
+                2010: density2010
+            };
+ 
+            var densityDataDSP = densityData[sliderVal];
+ 
+            // Define a basemap and min/max Zoom
+            var basemap = L.tileLayer('http://{s}.tile.stamen.com/toner/{z}/{x}/{y}.png', {
+                attribution: 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>. Statistical data by <a href="http://www.swisstopo.ch">Swisstopo</a>',
+                maxZoom: 8,
+                minZoom: 8
+            });
+ 
+            // Define map container. This puts the map in the <div> with the ID= 'densityMap'
+            // Hide Zoom Controles and fit initial map to the boundaries of the geometry
+            // stored in density1990.json.
+            var map = L.map('densityMap', {zoomControl: false}).fitBounds(L.geoJson(densityDataDSP).getBounds());
+ 
+            // Add the base map to the map
+            basemap.addTo(map);
+ 
+            // Now we will go into the mapping part of D3. First we have to create a new SVG element
+            // in which we will store our geometrys. This empty SVG element is added to the leaflet
+            // overlayPane:
+            svg = d3.select(map.getPanes().overlayPane).append("svg");
+ 
+            // With our SVG element set up, it is good practise to organise different SVG element, into
+            // Groups. Here we create a group "g" with the class "leaflet-zoom-hide"
+            g = svg.append("g").attr("class", "leaflet-zoom-hide");
+ 
+ 
+            // Now we come to na essential point when working with D3 generated SVGs on a leaflet map. Leaflet and
+            // D3 use different projections to display geometries. So we have to tell D3 to use the leaflet
+            // projection function "projectPoint".
+            transform = d3.geo.transform({point: projectPoint});
+ 
+            // Now a SVG path is created using the leaflet projection, which is stored in the variable "transform"
+            path = d3.geo.path().projection(transform);
+ 
+            // Use Leaflet to implement a D3 geometric transformation. This is the function that
+            // transforms D3 svg output to the correct leaflet projection
+            function projectPoint(x, y) {
+                var point = map.latLngToLayerPoint(new L.LatLng(y, x));
+                this.stream.point(point.x, point.y);
+            }
+ 
+ 
+            // Now lets load the density map data of the year which is selected in the slider
+            densityMap = g.append("g")                    // Append group (g) to SVG element
+                    .attr("class","densityMap")          // give it a class for styling and access later
+                    .selectAll("path")                   // select all paths of specific group (g)
+                    .data(densityDataDSP.features)       // bind data to these
+                    .enter().append("path")              // prepare data to be appended to paths
+                    .attr("id", "canton")                // give them a id and class for styling and access later
+                    .attr("class", function(d) {
+                        return "_"+d.properties.name;
+                    })
+                    .attr("density",function(d){
+                        return "_"+d.properties.density;
+                    })
+                    .style("opacity", 0.8)// set initial opacity to 0.8
+                    .style("stroke","black")
+                    .style("fill", function(d){
+                        return getColour(d.properties.density);
+                    })
+ 
+                // As we are using D3 svgs, it is very easy to manipulate the polygons, depending on
+                // user interaction
+                // Here we are defining what happens, when a users cursor passes over a SVG element
+ 
+                    .on("mouseover", function(d) {
+ 
+                        // Change the opacity to 1. This will give it a kind of highlight effect
+                        d3.select(this).transition().duration(300).style("opacity", 1);
+ 
+                    })
+ 
+ 
+                // Here  we must now define what will happen, when the users cursor leaves the polygon again.
+                // If nothing is defined, the polygons will keep their onmouseover opacity of 1. We do not
+                // want this, so we define that, when the cursor leaves the polygon, the opacity goes back
+                // to 0.8:
+                    .on("mouseout", function(d) {
+                        d3.select(this).transition().duration(300).style("opacity", 0.8);
+                    })
+ 
+            // Function to get the colour of the polygon.
+            // This function basically takes the attribute value, stores the attribute value in the variable d,
+            // compares the variable d (attribute value) to various numbers (300, 250, 200 ...)  and then takes
+            // the color, where the condition is true.
+            // For example: If we have an attribute value of '220', the function starts at the top and
+            // checks if 220 is bigger than 300. Thats false so the function goes to the next value. It now checks
+            // is 220 bigger than 250? Thats also false so it goes to the next value again. Is 220 bigger than
+            // 200? This is true so the function takes the color defined where d > 200.
+ 
+            function getColour(d){
+                return  d > 300 ? '#e31a1c':
+                        d > 250 ? '#fc4e2a':
+                        d > 200 ? '#fd8d3c':
+                        d > 150 ? '#feb24c':
+                        d > 100 ? '#fed976':
+                        d > 50  ? '#ffeda0':
+                                  '#ffffcc';
+            }
+ 
+            console.log(densityDataDSP.features[0].properties.density)
+ 
+ 
+            // Add a legend
+            // Create the legend variable and set its position
+            var densityLegend = L.control({position: 'topleft'});
+            // Define what happens when the legend gets loaded
+ 
+            // Create a div to store our legend in
+            densityLegend.onAdd = function (map) {var div = L.DomUtil.create('div', 'info legend'); return div;}
+            // Create an array with the different intervals to be
+            // displayed in the legend
+ 
+            // Add empty legend to map
+            densityLegend.addTo(map);
+ 
+            var grades = [0,50,100,150,200,250, 300];
+            // Create an array called 'labels' and set the first 2 lines
+            var labels = ['<strong>Population density<br>[Inhabitants/Km²]</strong>'];
+            // For each element in the array 'grades' create a new line in the
+            // legend.
+            for (var i = 0; i < grades.length; i++){
+                // set the from value. This gets the number stored in the
+                // array 'grades' at position i
+                var from = grades [i];
+                // set the to value. This gets the number in the array
+                // 'grades' at position i+1. Additionally 1 is subtracted
+                // so that the legend says: "from 0 to 49" and not from "0 to 50"
+                var to = grades [i+1]-1;
+                // Create the text for each line
+                labels.push('<i style="background:' + getColour(from + 1) + '"></i> ' + from + (to ? '–' + to : '+'));
+            }
+ 
+            // Join all the labels in the labels-array and add a <br> after each element
+            var legendText = labels.join('<br>');
+ 
+            // Use D3.js to fill up the legend DIV with our legend items
+            d3.select(".legend.leaflet-control") // select the div with class '.legend.leaflet-control'
+              .html(legendText); // Add the html stored in the legendText variable.
+ 
+ 
+            // now we have to define what happens, when someone changes the slider value
+            $("#jahrslider").on("change", function(slideEvt) {
+ 
+ 
+                // Get the new value of the slider and update the text next to the slider
+                $("#jahrsliderVal").text(slideEvt.value.newValue);
+                // Put the new slider value in the variable sliderVal
+                sliderVal = slideEvt.value.newValue;
+                // Console log to check that the year hase been changed
+                console.log(sliderVal)
+ 
+                // Store the new data for the year in sliderVal in the variable densityDataDSP. This could
+                // also be done with a SWITCH- or an IF-Statement, but using an array has proven to be the fastest.
+                var densityData = {
+                    1990: density1990,
+                    2000: density2000,
+                    2010: density2010
+                }
+ 
+                var densityDataDSP = densityData[sliderVal];
+ 
+ 
+                // Now lets update the SVG-Path styles and attributes to fit the new values
+                d3.selectAll("path")                         // select all paths of specific group (g)
+                        .data(densityDataDSP.features)       // bind data to these
+                        .attr("density",function(d){         // Update the density attribute
+                            return "_"+d.properties.density;
+                        })
+                        .style("fill", function(d){          // Update the fill colour with the new value
+                            return getColour(d.properties.density);
+                        })
+ 
+ 
+            });
+ 
+            // Now because D3 is not generic leaflet, we have to defien what should happen to the SVG when
+            // a user scrolls or zooms. So on "viewreset" the function "reset" is called
+            map.on("viewreset", reset);
+ 
+            // On first load, the user will not have paned or zoomed, but the SVG still needs to be put in the
+            // right place, so the function reset is called.
+            reset();
+ 
+            // This function places the SVG at the right position, even after zoom and/or pan
+            function reset() {
+ 
+                // Get the bounding Box
+                boundsKreis = path.bounds(densityDataDSP);
+ 
+                // save top left and bottom right corner coordinates in variables
+                var topLeft = boundsKreis[0],
+                        bottomRight = boundsKreis[1];
+ 
+                // reposition and rescale SVG element
+                svg.attr("width", bottomRight[0] - topLeft[0])
+                        .attr("height", bottomRight[1] - topLeft[1])
+                        .style("left", topLeft[0] + "px")
+                        .style("top", topLeft[1] + "px");
+ 
+                // reposition all geometries in SVG
+                svg.selectAll("g.densityMap").attr("transform", "translate(" + -topLeft[0] + "," + -topLeft[1] + ")");
+                densityMap.attr("d", path);
+            }
+ 
+        }
+    </script>
+</body>
+</html>
